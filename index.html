@@ -1,180 +1,150 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Registro de Venta Rápido</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script type="module">
-        // --- Firebase Imports ---
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, addDoc, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Registro Rápido de Venta</title>
+  <script src="https://cdn.tailwindcss.com"></script>
 
-        // Establece el nivel de log para depuración de Firestore
-        setLogLevel('debug');
-
-        // Variables Globales de Firebase (PROPORCIONADAS POR EL ENTORNO)
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
-        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-        let db, auth, storage;
-        let userId = 'anon'; // Valor por defecto antes de la autenticación
-
-        // Inicializa Firebase y Autenticación
-        async function initializeFirebase() {
-            if (!firebaseConfig) {
-                console.error("Firebase config no está disponible.");
-                document.getElementById('message-box').textContent = "Error: Configuración de Firebase faltante.";
-                return;
-            }
-
-            const app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-            storage = getStorage(app);
-
-            try {
-                if (initialAuthToken) {
-                    const userCredential = await signInWithCustomToken(auth, initialAuthToken);
-                    userId = userCredential.user.uid;
-                } else {
-                    const userCredential = await signInAnonymously(auth);
-                    userId = userCredential.user.uid;
-                }
-                console.log("Autenticación exitosa. User ID:", userId);
-                document.getElementById('loading-message').classList.add('hidden');
-                document.getElementById('form-container').classList.remove('hidden');
-
-            } catch (error) {
-                console.error("Error de autenticación:", error);
-                document.getElementById('message-box').textContent = "Error de autenticación: " + error.message;
-            }
-        }
-
-        // Función para mostrar mensajes de estado
-        function showMessage(text, isError = false) {
-            const messageBox = document.getElementById('message-box');
-            messageBox.textContent = text;
-            messageBox.classList.remove('bg-green-100', 'text-green-800', 'bg-red-100', 'text-red-800');
-            if (isError) {
-                messageBox.classList.add('bg-red-100', 'text-red-800');
-            } else {
-                messageBox.classList.add('bg-green-100', 'text-green-800');
-            }
-            messageBox.classList.remove('hidden');
-        }
-
-        // --- Lógica Principal del Formulario ---
-        window.handleSaleSubmit = async (event) => {
-            event.preventDefault();
-
-            const submitButton = document.getElementById('submit-button');
-            submitButton.disabled = true;
-            submitButton.textContent = 'Registrando...';
-            document.getElementById('message-box').classList.add('hidden');
-
-            const nombre = document.getElementById('nombre').value.trim();
-            const monto = document.getElementById('monto').value.trim();
-            const fileInput = document.getElementById('comprobante');
-            const file = fileInput.files[0];
-
-            if (!nombre || !monto || !file) {
-                showMessage("Por favor, complete todos los campos y suba el comprobante.", true);
-                submitButton.disabled = false;
-                submitButton.textContent = 'Registrar Venta';
-                return;
-            }
-
-            try {
-                // 1. Subir la imagen a Firebase Storage
-                showMessage("Subiendo comprobante...", false);
-                const storageRef = ref(storage, `artifacts/${appId}/public/images/${userId}/${Date.now()}_${file.name}`);
-                const snapshot = await uploadBytes(storageRef, file);
-                const imageUrl = await getDownloadURL(snapshot.ref);
-
-                // 2. Guardar el registro en Firestore
-                showMessage("Guardando registro de venta...", false);
-                
-                // Ruta pública para que Make pueda leer fácilmente y notificar a Telegram
-                const publicCollectionPath = `artifacts/${appId}/public/data/ventas_telegram`;
-                const docRef = await addDoc(collection(db, publicCollectionPath), {
-                    nombreTitular: nombre,
-                    monto: parseFloat(monto), // Aseguramos que el monto sea un número
-                    fechaVenta: serverTimestamp(),
-                    comprobanteUrl: imageUrl,
-                    vendedorId: userId,
-                    procesado: false // Campo de control para Make
-                });
-
-                showMessage(`✅ Venta registrada con éxito. ID: ${docRef.id}`, false);
-                
-                // Limpiar formulario
-                document.getElementById('venta-form').reset();
-
-            } catch (error) {
-                console.error("Error al registrar la venta:", error);
-                showMessage("❌ Error al registrar la venta. Intente nuevamente.", true);
-            } finally {
-                submitButton.disabled = false;
-                submitButton.textContent = 'Registrar Venta';
-            }
-        };
-
-        // Inicia la aplicación al cargar la ventana
-        window.onload = initializeFirebase;
-    </script>
+  <style>
+    body {
+      background-color: #111827; /* gris oscuro tipo Tailwind gray-900 */
+      color: #e5e7eb; /* gris claro */
+      font-family: 'Inter', system-ui, sans-serif;
+    }
+    input, button {
+      outline: none;
+    }
+    input:invalid {
+      border-color: #ef4444;
+    }
+    .error {
+      color: #f87171;
+      font-size: 0.8rem;
+      margin-top: 4px;
+    }
+    .glass {
+      background: rgba(30, 41, 59, 0.75);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+    }
+  </style>
 </head>
-<body class="bg-gray-50 min-h-screen flex flex-col items-center justify-center p-4">
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
 
-    <!-- Contenedor Principal -->
-    <div class="w-full max-w-lg bg-white shadow-xl rounded-xl p-8 space-y-6">
-        <h1 class="text-3xl font-extrabold text-indigo-700 text-center">Registro Rápido de Venta</h1>
-        <p class="text-center text-gray-500">Ingresa los datos y sube el comprobante de la venta Zelle.</p>
+  <div class="w-full max-w-md glass shadow-2xl rounded-2xl p-8 space-y-6">
+    <h1 class="text-3xl font-bold text-center text-blue-400">Registro de Venta</h1>
+    <p class="text-center text-gray-400">Completa los campos y adjunta el comprobante.</p>
 
-        <!-- Mensaje de Carga -->
-        <div id="loading-message" class="flex items-center justify-center p-4 text-indigo-600">
-            <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-            </svg>
-            Cargando Firebase...
-        </div>
+    <div id="message" class="hidden p-3 rounded-md text-sm font-medium text-center"></div>
 
-        <!-- Caja de Mensajes de Estado -->
-        <div id="message-box" class="hidden p-3 rounded-lg text-sm transition duration-300"></div>
+    <form id="sale-form" class="space-y-5" enctype="multipart/form-data">
+      <!-- Nombre -->
+      <div>
+        <label for="nombre" class="block text-sm font-medium mb-1">Nombre del Titular</label>
+        <input type="text" id="nombre" required
+               pattern="^[A-Za-zÁÉÍÓÚáéíóúÑñ ]+$"
+               placeholder="Ej: Nestor Valero"
+               class="block w-full rounded-md bg-[#1e293b] border border-transparent px-4 py-2 focus:border-blue-500 transition duration-150">
+        <p id="error-nombre" class="error hidden">Solo se permiten letras y espacios.</p>
+      </div>
 
-        <!-- Formulario (Oculto hasta la inicialización de Firebase) -->
-        <form id="venta-form" onsubmit="handleSaleSubmit(event)" class="space-y-6 hidden" enctype="multipart/form-data">
+      <!-- Importe -->
+      <div>
+        <label for="monto" class="block text-sm font-medium mb-1">Importe</label>
+        <input type="text" id="monto" required
+               placeholder="Ej: 50,00"
+               class="block w-full rounded-md bg-[#1e293b] border border-transparent px-4 py-2 focus:border-blue-500 transition duration-150">
+        <p id="error-monto" class="error hidden">Ingrese un número válido. Use coma (,) para decimales.</p>
+      </div>
 
-            <div>
-                <label for="nombre" class="block text-sm font-medium text-gray-700 mb-1">Nombre del Titular</label>
-                <input type="text" id="nombre" required placeholder="Ej: Juan Pérez"
-                       class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 transition duration-150">
-            </div>
+      <!-- Comprobante -->
+      <div>
+        <label for="comprobante" class="block text-sm font-medium mb-1">Comprobante (imagen máx. 1 MB)</label>
+        <input type="file" id="comprobante" required accept="image/*"
+               class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 transition duration-150">
+        <p id="error-comprobante" class="error hidden">Debe adjuntar una imagen menor a 1 MB.</p>
+      </div>
 
-            <div>
-                <label for="monto" class="block text-sm font-medium text-gray-700 mb-1">Monto (Importe)</label>
-                <input type="number" id="monto" required min="0.01" step="0.01" placeholder="Ej: 50.00"
-                       class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 transition duration-150">
-            </div>
+      <!-- Botón -->
+      <button type="submit" id="submit-btn"
+              class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 rounded-md transition duration-150 shadow-lg hover:shadow-blue-500/30">
+        Enviar Registro
+      </button>
+    </form>
+  </div>
 
-            <div>
-                <label for="comprobante" class="block text-sm font-medium text-gray-700 mb-1">Comprobante (Imagen)</label>
-                <input type="file" id="comprobante" required accept="image/*"
-                       class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition duration-150">
-            </div>
+  <script>
+    const form = document.getElementById('sale-form');
+    const messageBox = document.getElementById('message');
 
-            <button type="submit" id="submit-button"
-                    class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
-                Registrar Venta
-            </button>
-        </form>
-    </div>
-    
-    <p class="mt-4 text-xs text-gray-400">ID Vendedor (Debug): <span id="user-id"></span></p>
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const nombre = document.getElementById('nombre');
+      const monto = document.getElementById('monto');
+      const comprobante = document.getElementById('comprobante');
+
+      // --- Validaciones ---
+      let valid = true;
+
+      const regexNombre = /^[A-Za-zÁÉÍÓÚáéíóúÑñ ]+$/;
+      if (!regexNombre.test(nombre.value.trim())) {
+        document.getElementById('error-nombre').classList.remove('hidden');
+        valid = false;
+      } else {
+        document.getElementById('error-nombre').classList.add('hidden');
+      }
+
+      const regexMonto = /^\d+(,\d{1,2})?$/;
+      if (!regexMonto.test(monto.value.trim())) {
+        document.getElementById('error-monto').classList.remove('hidden');
+        valid = false;
+      } else {
+        document.getElementById('error-monto').classList.add('hidden');
+      }
+
+      const file = comprobante.files[0];
+      if (!file || file.size > 1024 * 1024) {
+        document.getElementById('error-comprobante').classList.remove('hidden');
+        valid = false;
+      } else {
+        document.getElementById('error-comprobante').classList.add('hidden');
+      }
+
+      if (!valid) return;
+
+      // --- Envío al webhook (por ahora simulamos) ---
+      const formData = new FormData();
+      formData.append('nombre', nombre.value.trim());
+      formData.append('monto', monto.value.trim());
+      formData.append('comprobante', file);
+
+      try {
+        const WEBHOOK_URL = "https://hook.us2.make.com/mxvvtwmv3ruqbo7ar8gs2suybjm8d22s";
+        const response = await fetch(WEBHOOK_URL, {
+          method: 'POST',
+          body: formData
+        });
+
+        if (response.ok) {
+          showMessage("✅ Registro enviado correctamente.", false);
+          form.reset();
+        } else {
+          throw new Error("Error al enviar");
+        }
+      } catch (err) {
+        showMessage("❌ No se pudo enviar el registro.", true);
+      }
+    });
+
+    function showMessage(text, isError = false) {
+      messageBox.textContent = text;
+      messageBox.classList.remove('hidden');
+      messageBox.classList.remove('bg-red-600', 'bg-green-600');
+      messageBox.classList.add(isError ? 'bg-red-600' : 'bg-green-600');
+    }
+  </script>
 
 </body>
 </html>
