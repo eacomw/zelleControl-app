@@ -8,7 +8,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body {
-      background-color: #111827;
+      background-color: #0f172a;
       color: #e5e7eb;
       font-family: 'Inter', system-ui, sans-serif;
       -webkit-font-smoothing: antialiased;
@@ -27,7 +27,7 @@
       margin-top: 4px;
     }
     .glass {
-      background: rgba(30, 41, 59, 0.75);
+      background: rgba(30, 41, 59, 0.8);
       backdrop-filter: blur(12px);
       border: 1px solid rgba(255, 255, 255, 0.08);
     }
@@ -37,11 +37,25 @@
 <body class="min-h-screen flex flex-col items-center justify-center p-4">
   <div class="w-full max-w-md glass shadow-xl rounded-2xl p-8 space-y-6">
     <h1 class="text-3xl font-bold text-center text-blue-400">Registro de Venta</h1>
-    <p class="text-center text-gray-400">Completa los datos y adjunta el comprobante.</p>
+    <p id="user-display" class="text-center text-gray-400">Ingresa tu código de vendedor para comenzar.</p>
 
     <div id="message" class="hidden p-3 rounded-md text-sm font-medium text-center"></div>
 
     <form id="sale-form" class="space-y-5" enctype="multipart/form-data" novalidate>
+      <!-- Código de vendedor -->
+      <div id="codigo-section">
+        <label for="codigo" class="block text-sm font-medium mb-1">Código de Vendedor</label>
+        <input
+          type="text"
+          id="codigo"
+          required
+          placeholder="Ej: AA11"
+          class="block w-full rounded-md bg-[#1e293b] border border-transparent px-4 py-3 text-base focus:border-blue-500 transition duration-150 uppercase"
+        />
+        <p id="error-codigo" class="error hidden">Código inválido. Verifique su código de vendedor.</p>
+        <p class="text-xs text-gray-500 mt-1">Cada vendedor tiene su código asignado.</p>
+      </div>
+
       <!-- Nombre -->
       <div>
         <label for="nombre" class="block text-sm font-medium mb-1">Nombre del Titular</label>
@@ -95,14 +109,58 @@
   </div>
 
   <script>
+    // Relación código → nombre de vendedor
+    const vendedores = {
+      EP01: "Easypay",
+      NV01: "Nestor",
+      SR22: "Suni",
+      JR88: "Jeusmar"
+    };
+
     const form = document.getElementById('sale-form');
     const messageBox = document.getElementById('message');
+    const userDisplay = document.getElementById('user-display');
+    const codigoInput = document.getElementById('codigo');
+    const codigoSection = document.getElementById('codigo-section');
 
-    // URL del webhook de Make
+    // ✅ Webhook de Make
     const WEBHOOK_URL = "https://hook.us2.make.com/mxvvtwmv3ruqbo7ar8gs2suybjm8d22s";
+
+    // Si ya hay un código guardado, bloqueamos el campo y mostramos el nombre
+    window.addEventListener("load", () => {
+      const savedCode = localStorage.getItem("codigoVendedor");
+      if (savedCode && vendedores[savedCode]) {
+        mostrarUsuario(vendedores[savedCode]);
+        codigoSection.classList.add("hidden"); // ocultamos el campo
+      } else {
+        userDisplay.textContent = "Ingresa tu código de vendedor para comenzar.";
+      }
+    });
+
+    // Validar código al escribir
+    codigoInput.addEventListener("input", (e) => {
+      const code = e.target.value.trim().toUpperCase();
+      if (vendedores[code]) {
+        localStorage.setItem("codigoVendedor", code);
+        mostrarUsuario(vendedores[code]);
+        codigoSection.classList.add("hidden");
+      }
+    });
+
+    function mostrarUsuario(nombre) {
+      userDisplay.innerHTML = `Bienvenido, <span class="text-blue-400 font-semibold">${nombre}</span>. Completa los datos y adjunta el comprobante.`;
+    }
 
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
+
+      const codigo = localStorage.getItem("codigoVendedor");
+      const vendedorNombre = vendedores[codigo];
+      if (!vendedorNombre) {
+        document.getElementById('error-codigo').classList.remove('hidden');
+        codigoSection.classList.remove('hidden');
+        return;
+      }
 
       const nombre = document.getElementById('nombre');
       const monto = document.getElementById('monto');
@@ -110,7 +168,6 @@
 
       let valid = true;
 
-      // Validaciones
       const regexNombre = /^[A-Za-zÁÉÍÓÚáéíóúÑñ ]+$/;
       if (!regexNombre.test(nombre.value.trim())) {
         document.getElementById('error-nombre').classList.remove('hidden');
@@ -137,10 +194,17 @@
 
       if (!valid) return;
 
-      // Prepara datos para enviar
+      // Fecha local
+      const ahora = new Date();
+      const pad = (n) => n.toString().padStart(2, '0');
+      const fechaFormateada = `${pad(ahora.getDate())}/${pad(ahora.getMonth() + 1)}/${ahora.getFullYear()} ${pad(ahora.getHours())}:${pad(ahora.getMinutes())}`;
+
+      // Datos a enviar
       const formData = new FormData();
+      formData.append('vendedor', vendedorNombre);
       formData.append('nombre', nombre.value.trim());
       formData.append('monto', monto.value.trim());
+      formData.append('fecha', fechaFormateada);
       formData.append('comprobante', file);
 
       try {
