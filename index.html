@@ -1,19 +1,22 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Registro Rápido de Venta</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Registro de Venta</title>
+  <meta name="theme-color" content="#111827" />
   <script src="https://cdn.tailwindcss.com"></script>
-
   <style>
     body {
-      background-color: #111827; /* gris oscuro tipo Tailwind gray-900 */
-      color: #e5e7eb; /* gris claro */
+      background-color: #111827;
+      color: #e5e7eb;
       font-family: 'Inter', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
     }
     input, button {
       outline: none;
+      touch-action: manipulation;
     }
     input:invalid {
       border-color: #ef4444;
@@ -30,45 +33,62 @@
     }
   </style>
 </head>
-<body class="min-h-screen flex flex-col items-center justify-center p-4">
 
-  <div class="w-full max-w-md glass shadow-2xl rounded-2xl p-8 space-y-6">
+<body class="min-h-screen flex flex-col items-center justify-center p-4">
+  <div class="w-full max-w-md glass shadow-xl rounded-2xl p-8 space-y-6">
     <h1 class="text-3xl font-bold text-center text-blue-400">Registro de Venta</h1>
-    <p class="text-center text-gray-400">Completa los campos y adjunta el comprobante.</p>
+    <p class="text-center text-gray-400">Completa los datos y adjunta el comprobante.</p>
 
     <div id="message" class="hidden p-3 rounded-md text-sm font-medium text-center"></div>
 
-    <form id="sale-form" class="space-y-5" enctype="multipart/form-data">
+    <form id="sale-form" class="space-y-5" enctype="multipart/form-data" novalidate>
       <!-- Nombre -->
       <div>
         <label for="nombre" class="block text-sm font-medium mb-1">Nombre del Titular</label>
-        <input type="text" id="nombre" required
-               pattern="^[A-Za-zÁÉÍÓÚáéíóúÑñ ]+$"
-               placeholder="Ej: Nestor Valero"
-               class="block w-full rounded-md bg-[#1e293b] border border-transparent px-4 py-2 focus:border-blue-500 transition duration-150">
+        <input
+          type="text"
+          id="nombre"
+          required
+          pattern="^[A-Za-zÁÉÍÓÚáéíóúÑñ ]+$"
+          placeholder="Ej: Pepe Grillo"
+          class="block w-full rounded-md bg-[#1e293b] border border-transparent px-4 py-3 text-base focus:border-blue-500 transition duration-150"
+        />
         <p id="error-nombre" class="error hidden">Solo se permiten letras y espacios.</p>
       </div>
 
       <!-- Importe -->
       <div>
         <label for="monto" class="block text-sm font-medium mb-1">Importe</label>
-        <input type="text" id="monto" required
-               placeholder="Ej: 50,00"
-               class="block w-full rounded-md bg-[#1e293b] border border-transparent px-4 py-2 focus:border-blue-500 transition duration-150">
+        <input
+          type="text"
+          id="monto"
+          required
+          inputmode="decimal"
+          placeholder="Ej: 50,00"
+          class="block w-full rounded-md bg-[#1e293b] border border-transparent px-4 py-3 text-base focus:border-blue-500 transition duration-150"
+        />
         <p id="error-monto" class="error hidden">Ingrese un número válido. Use coma (,) para decimales.</p>
       </div>
 
       <!-- Comprobante -->
       <div>
         <label for="comprobante" class="block text-sm font-medium mb-1">Comprobante (imagen máx. 1 MB)</label>
-        <input type="file" id="comprobante" required accept="image/*"
-               class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 transition duration-150">
+        <input
+          type="file"
+          id="comprobante"
+          required
+          accept="image/*"
+          class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:font-semibold file:bg-blue-600 file:text-white hover:file:bg-blue-500 transition duration-150"
+        />
         <p id="error-comprobante" class="error hidden">Debe adjuntar una imagen menor a 1 MB.</p>
       </div>
 
       <!-- Botón -->
-      <button type="submit" id="submit-btn"
-              class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2 rounded-md transition duration-150 shadow-lg hover:shadow-blue-500/30">
+      <button
+        type="submit"
+        id="submit-btn"
+        class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 rounded-md text-base transition duration-150 shadow-md hover:shadow-blue-500/30 active:scale-95"
+      >
         Enviar Registro
       </button>
     </form>
@@ -78,6 +98,9 @@
     const form = document.getElementById('sale-form');
     const messageBox = document.getElementById('message');
 
+    // URL del webhook de Make
+    const WEBHOOK_URL = "https://hook.us2.make.com/mxovtwmv3ruqb07ar8gs2subyjbm8d22s";
+
     form.addEventListener('submit', async (e) => {
       e.preventDefault();
 
@@ -85,9 +108,9 @@
       const monto = document.getElementById('monto');
       const comprobante = document.getElementById('comprobante');
 
-      // --- Validaciones ---
       let valid = true;
 
+      // Validaciones
       const regexNombre = /^[A-Za-zÁÉÍÓÚáéíóúÑñ ]+$/;
       if (!regexNombre.test(nombre.value.trim())) {
         document.getElementById('error-nombre').classList.remove('hidden');
@@ -114,37 +137,35 @@
 
       if (!valid) return;
 
-      // --- Envío al webhook (por ahora simulamos) ---
+      // Prepara datos para enviar
       const formData = new FormData();
       formData.append('nombre', nombre.value.trim());
       formData.append('monto', monto.value.trim());
       formData.append('comprobante', file);
 
       try {
-        const WEBHOOK_URL = "https://hook.us2.make.com/mxvvtwmv3ruqbo7ar8gs2suybjm8d22s";
         const response = await fetch(WEBHOOK_URL, {
           method: 'POST',
-          body: formData
+          body: formData,
+          mode: 'cors',
         });
 
         if (response.ok) {
           showMessage("✅ Registro enviado correctamente.", false);
           form.reset();
         } else {
-          throw new Error("Error al enviar");
+          throw new Error("Error en el envío");
         }
-      } catch (err) {
-        showMessage("❌ No se pudo enviar el registro.", true);
+      } catch {
+        showMessage("❌ No se pudo enviar el registro. Intente nuevamente.", true);
       }
     });
 
     function showMessage(text, isError = false) {
       messageBox.textContent = text;
-      messageBox.classList.remove('hidden');
-      messageBox.classList.remove('bg-red-600', 'bg-green-600');
+      messageBox.classList.remove('hidden', 'bg-red-600', 'bg-green-600');
       messageBox.classList.add(isError ? 'bg-red-600' : 'bg-green-600');
     }
   </script>
-
 </body>
 </html>
