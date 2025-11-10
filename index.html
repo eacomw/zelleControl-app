@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro de Venta Rápido</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        // --- Firebase Imports ---
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInWithCustomToken, signInAnonymously } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, collection, addDoc, serverTimestamp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-storage.js";
+
+        // Establece el nivel de log para depuración de Firestore
+        setLogLevel('debug');
+
+        // Variables Globales de Firebase (PROPORCIONADAS POR EL ENTORNO)
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db, auth, storage;
+        let userId = 'anon'; // Valor por defecto antes de la autenticación
+
+        // Inicializa Firebase y Autenticación
+        async function initializeFirebase() {
+            if (!firebaseConfig) {
+                console.error("Firebase config no está disponible.");
+                document.getElementById('message-box').textContent = "Error: Configuración de Firebase faltante.";
+                return;
+            }
+
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            storage = getStorage(app);
+
+            try {
+                if (initialAuthToken) {
+                    const userCredential = await signInWithCustomToken(auth, initialAuthToken);
+                    userId = userCredential.user.uid;
+                } else {
+                    const userCredential = await signInAnonymously(auth);
+                    userId = userCredential.user.uid;
+                }
+                console.log("Autenticación exitosa. User ID:", userId);
+                document.getElementById('loading-message').classList.add('hidden');
+                document.getElementById('form-container').classList.remove('hidden');
+
+            } catch (error) {
+                console.error("Error de autenticación:", error);
+                document.getElementById('message-box').textContent = "Error de autenticación: " + error.message;
+            }
+        }
+
+        // Función para mostrar mensajes de estado
+        function showMessage(text, isError = false) {
+            const messageBox = document.getElementById('message-box');
+            messageBox.textContent = text;
+            messageBox.classList.remove('bg-green-100', 'text-green-800', 'bg-red-100', 'text-red-800');
+            if (isError) {
+                messageBox.classList.add('bg-red-100', 'text-red-800');
+            } else {
+                messageBox.classList.add('bg-green-100', 'text-green-800');
+            }
+            messageBox.classList.remove('hidden');
+        }
+
+        // --- Lógica Principal del Formulario ---
+        window.handleSaleSubmit = async (event) => {
+            event.preventDefault();
+
+            const submitButton = document.getElementById('submit-button');
+            submitButton.disabled = true;
+            submitButton.textContent = 'Registrando...';
+            document.getElementById('message-box').classList.add('hidden');
+
+            const nombre = document.getElementById('nombre').value.trim();
+            const monto = document.getElementById('monto').value.trim();
+            const fileInput = document.getElementById('comprobante');
+            const file = fileInput.files[0];
+
+            if (!nombre || !monto || !file) {
+                showMessage("Por favor, complete todos los campos y suba el comprobante.", true);
+                submitButton.disabled = false;
+                submitButton.textContent = 'Registrar Venta';
+                return;
+            }
+
+            try {
+                // 1. Subir la imagen a Firebase Storage
+                showMessage("Subiendo comprobante...", false);
+                const storageRef = ref(storage, `artifacts/${appId}/public/images/${userId}/${Date.now()}_${file.name}`);
+                const snapshot = await uploadBytes(storageRef, file);
+                const imageUrl = await getDownloadURL(snapshot.ref);
+
+                // 2. Guardar el registro en Firestore
+                showMessage("Guardando registro de venta...", false);
+                
+                // Ruta pública para que Make pueda leer fácilmente y notificar a Telegram
+                const publicCollectionPath = `artifacts/${appId}/public/data/ventas_telegram`;
+                const docRef = await addDoc(collection(db, publicCollectionPath), {
+                    nombreTitular: nombre,
+                    monto: parseFloat(monto), // Aseguramos que el monto sea un número
+                    fechaVenta: serverTimestamp(),
+                    comprobanteUrl: imageUrl,
+                    vendedorId: userId,
+                    procesado: false // Campo de control para Make
+                });
+
+                showMessage(`✅ Venta registrada con éxito. ID: ${docRef.id}`, false);
+                
+                // Limpiar formulario
+                document.getElementById('venta-form').reset();
+
+            } catch (error) {
+                console.error("Error al registrar la venta:", error);
+                showMessage("❌ Error al registrar la venta. Intente nuevamente.", true);
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = 'Registrar Venta';
+            }
+        };
+
+        // Inicia la aplicación al cargar la ventana
+        window.onload = initializeFirebase;
+    </script>
+</head>
+<body class="bg-gray-50 min-h-screen flex flex-col items-center justify-center p-4">
+
+    <!-- Contenedor Principal -->
+    <div class="w-full max-w-lg bg-white shadow-xl rounded-xl p-8 space-y-6">
+        <h1 class="text-3xl font-extrabold text-indigo-700 text-center">Registro Rápido de Venta</h1>
+        <p class="text-center text-gray-500">Ingresa los datos y sube el comprobante de la venta Zelle.</p>
+
+        <!-- Mensaje de Carga -->
+        <div id="loading-message" class="flex items-center justify-center p-4 text-indigo-600">
+            <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            Cargando Firebase...
+        </div>
+
+        <!-- Caja de Mensajes de Estado -->
+        <div id="message-box" class="hidden p-3 rounded-lg text-sm transition duration-300"></div>
+
+        <!-- Formulario (Oculto hasta la inicialización de Firebase) -->
+        <form id="venta-form" onsubmit="handleSaleSubmit(event)" class="space-y-6 hidden" enctype="multipart/form-data">
+
+            <div>
+                <label for="nombre" class="block text-sm font-medium text-gray-700 mb-1">Nombre del Titular</label>
+                <input type="text" id="nombre" required placeholder="Ej: Juan Pérez"
+                       class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 transition duration-150">
+            </div>
+
+            <div>
+                <label for="monto" class="block text-sm font-medium text-gray-700 mb-1">Monto (Importe)</label>
+                <input type="number" id="monto" required min="0.01" step="0.01" placeholder="Ej: 50.00"
+                       class="mt-1 block w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:ring-indigo-500 focus:border-indigo-500 transition duration-150">
+            </div>
+
+            <div>
+                <label for="comprobante" class="block text-sm font-medium text-gray-700 mb-1">Comprobante (Imagen)</label>
+                <input type="file" id="comprobante" required accept="image/*"
+                       class="mt-1 block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 transition duration-150">
+            </div>
+
+            <button type="submit" id="submit-button"
+                    class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-md text-base font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out">
+                Registrar Venta
+            </button>
+        </form>
+    </div>
+    
+    <p class="mt-4 text-xs text-gray-400">ID Vendedor (Debug): <span id="user-id"></span></p>
+
+</body>
+</html>
